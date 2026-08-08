@@ -138,6 +138,19 @@ jobs:
         with:
           name: functions-publish
           path: ./publish/func
+      - name: Verify artifact has .azurefunctions
+        run: |
+          echo "=== Top-level after download ==="
+          ls -la ./publish/func/
+          echo ""
+          if [ -d "./publish/func/.azurefunctions" ]; then
+            echo ".azurefunctions EXISTS after download"
+            ls -la ./publish/func/.azurefunctions/
+          else
+            echo "!!! .azurefunctions MISSING after download - was lost during artifact transfer"
+            echo "Searching for it anywhere..."
+            find ./publish -name ".azurefunctions" -type d 2>/dev/null || echo "Not found anywhere"
+          fi
       - uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
