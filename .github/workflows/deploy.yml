@@ -42,14 +42,11 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
       - run: dotnet publish src/CloudNotes.Functions/CloudNotes.Functions.csproj -c Release -o ./publish/func
-      - name: Package as zip (preserve dotfiles)
+      - name: Package as zip
         shell: bash
         run: |
           cd ./publish/func
           zip -r ../func-package.zip .
-          cd ../..
-          echo "=== ZIP contents ==="
-          unzip -l ./publish/func-package.zip | head -30
       - uses: actions/upload-artifact@v4
         with:
           name: functions-publish
