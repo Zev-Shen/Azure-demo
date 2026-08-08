@@ -42,6 +42,51 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
       - run: dotnet publish src/CloudNotes.Functions/CloudNotes.Functions.csproj -c Release -o ./publish/func
+      - name: Debug publish output
+        shell: bash
+        run: |
+          echo "=== Top-level publish files ==="
+          ls -la ./publish/func/
+          echo ""
+          echo "=== Searching for .azurefunctions anywhere ==="
+          find . -name ".azurefunctions" -type d 2>/dev/null || echo ".azurefunctions NOT FOUND"
+          echo ""
+          echo "=== WorkerExtensions build output ==="
+          WORKER_DIR="src/CloudNotes.Functions/obj/Release/net10.0/WorkerExtensions/bin/Release/net8.0"
+          if [ -d "$WORKER_DIR" ]; then
+            echo "WorkerExtensions found. Contents:"
+            ls -la "$WORKER_DIR"
+          else
+            echo "WorkerExtensions NOT FOUND"
+          fi
+      - name: Generate .azurefunctions (fallback)
+        shell: bash
+        run: |
+          if [ -d "./publish/func/.azurefunctions" ]; then
+            echo ".azurefunctions already exists, skipping fallback"
+            exit 0
+          fi
+          echo "!!! .azurefunctions missing — generating from WorkerExtensions"
+          mkdir -p ./publish/func/.azurefunctions
+          WORKER_DIR="src/CloudNotes.Functions/obj/Release/net10.0/WorkerExtensions/bin/Release/net8.0"
+          if [ ! -d "$WORKER_DIR" ]; then
+            echo "!!! ERROR: WorkerExtensions build output also missing. Build failed."
+            exit 1
+          fi
+          # Copy all root-level files (DLLs, JSON) but skip bin/ subdir
+          for f in "$WORKER_DIR"/*; do
+            if [ -f "$f" ]; then
+              cp "$f" ./publish/func/.azurefunctions/
+            elif [ -d "$f" ] && [ "$(basename "$f")" != "bin" ]; then
+              cp -r "$f" ./publish/func/.azurefunctions/
+            fi
+          done
+          # Rename deps.json to function.deps.json (required by Functions host)
+          if [ -f "./publish/func/.azurefunctions/Microsoft.Azure.Functions.Worker.Extensions.deps.json" ]; then
+            mv ./publish/func/.azurefunctions/Microsoft.Azure.Functions.Worker.Extensions.deps.json ./publish/func/.azurefunctions/function.deps.json
+          fi
+          echo "=== Generated .azurefunctions ==="
+          ls -la ./publish/func/.azurefunctions/
       - uses: actions/upload-artifact@v4
         with:
           name: functions-publish
@@ -127,6 +172,3 @@ jobs:
           containerAppName: ${{ env.CONTAINER_APP_NAME }}
           imageToDeploy: ${{ env.ACR_NAME }}.azurecr.io/cloudnotes-report:${{ github.sha }}
           targetPort: 8080
-
-
-
