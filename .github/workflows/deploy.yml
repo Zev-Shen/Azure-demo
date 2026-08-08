@@ -45,6 +45,14 @@ jobs:
 
       - name: Publish Functions
         run: dotnet publish src/CloudNotes.Functions/CloudNotes.Functions.csproj -c Release -o ./publish/func
+      - name: Debug: List Functions publish output
+        run: |
+          echo "=== Top level ==="
+          ls -la ./publish/func/
+          echo "=== .azurefunctions ==="
+          ls -la ./publish/func/.azurefunctions/ || echo "NOT FOUND"
+          echo "=== .azurefunctions/runtimes ==="
+          ls -la ./publish/func/.azurefunctions/runtimes/ || echo "NOT FOUND"
 
       - name: Upload API artifact
         uses: actions/upload-artifact@v4
@@ -168,3 +176,4 @@ jobs:
           containerAppName: ${{ env.CONTAINER_APP_NAME }}
           imageToDeploy: ${{ env.ACR_NAME }}.azurecr.io/cloudnotes-report:${{ github.sha }}
           targetPort: 8080
+
