@@ -73,7 +73,6 @@ jobs:
             echo "!!! ERROR: WorkerExtensions build output also missing. Build failed."
             exit 1
           fi
-          # Copy all root-level files (DLLs, JSON) but skip bin/ subdir
           for f in "$WORKER_DIR"/*; do
             if [ -f "$f" ]; then
               cp "$f" ./publish/func/.azurefunctions/
@@ -81,7 +80,6 @@ jobs:
               cp -r "$f" ./publish/func/.azurefunctions/
             fi
           done
-          # Rename deps.json to function.deps.json (required by Functions host)
           if [ -f "./publish/func/.azurefunctions/Microsoft.Azure.Functions.Worker.Extensions.deps.json" ]; then
             mv ./publish/func/.azurefunctions/Microsoft.Azure.Functions.Worker.Extensions.deps.json ./publish/func/.azurefunctions/function.deps.json
           fi
@@ -145,10 +143,11 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      - uses: azure/webapps-deploy@v3
+      - uses: azure/functions-action@v1
         with:
           app-name: ${{ env.FUNCTION_APP_NAME }}
           package: ./publish/func
+          respect-funcignore: true
 
   deploy-report:
     name: Deploy Report
