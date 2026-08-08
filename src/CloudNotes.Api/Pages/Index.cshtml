@@ -1,0 +1,169 @@
+﻿@page "/"
+@model CloudNotes.Api.Pages.IndexModel
+@{
+    Layout = null;
+}
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CloudNotes - Azure Learning Demo</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: #f5f5f5; color: #333; line-height: 1.5; }
+        .container { max-width: 960px; margin: 0 auto; padding: 20px; }
+        h1 { font-size: 1.5rem; margin-bottom: 4px; }
+        .subtitle { color: #666; font-size: 0.875rem; margin-bottom: 24px; }
+        section { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+        section h2 { font-size: 1.125rem; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #eee; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
+        th, td { padding: 6px 10px; text-align: left; border-bottom: 1px solid #f0f0f0; word-break: break-all; }
+        th { background: #fafafa; font-weight: 600; color: #555; }
+        .form-group { margin-bottom: 12px; }
+        label { display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 4px; }
+        input[type="text"], textarea { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.875rem; font-family: inherit; }
+        textarea { resize: vertical; min-height: 80px; }
+        input[type="file"] { font-size: 0.875rem; }
+        button { padding: 8px 20px; background: #0078d4; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 0.875rem; }
+        button:hover { background: #106ebe; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .note-card { border: 1px solid #eee; border-radius: 6px; padding: 14px; margin-bottom: 10px; }
+        .note-card h3 { font-size: 1rem; margin-bottom: 4px; }
+        .note-card .meta { font-size: 0.75rem; color: #888; margin-bottom: 6px; }
+        .note-card .content { font-size: 0.875rem; color: #444; }
+        .note-card img { max-width: 150px; max-height: 100px; border-radius: 4px; margin-top: 8px; }
+        .note-card .actions { margin-top: 8px; }
+        .note-card .actions button { background: #d32f2f; padding: 4px 12px; font-size: 0.75rem; }
+        #loading { text-align: center; color: #888; padding: 20px; }
+        .empty { text-align: center; color: #aaa; padding: 30px; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.6875rem; font-weight: 600; }
+        .badge-ok { background: #e8f5e9; color: #2e7d32; }
+        .badge-warn { background: #fff3e0; color: #e65100; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>&#x1F4D3; CloudNotes</h1>
+        <p class="subtitle">Azure &#x5168;&#x5BB6;&#x6876; Learning Demo &mdash; App Service + Functions + Container Apps + Blob + Key Vault</p>
+
+        <section>
+            <h2>&#x73AF;&#x5883;&#x53D8;&#x91CF;</h2>
+            <div id="env-loading">&#x52A0;&#x8F7D;&#x4E2D;...</div>
+            <table id="env-table" style="display:none">
+                <thead><tr><th>&#x53D8;&#x91CF;&#x540D;</th><th>&#x503C;</th></tr></thead>
+                <tbody id="env-tbody"></tbody>
+            </table>
+        </section>
+
+        <section>
+            <h2>&#x5199;&#x7B14;&#x8BB0;</h2>
+            <form id="note-form" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="title">&#x6807;&#x9898;</label>
+                    <input type="text" id="title" name="title" required maxlength="200" placeholder="&#x8F93;&#x5165;&#x6807;&#x9898;..." />
+                </div>
+                <div class="form-group">
+                    <label for="content">&#x5185;&#x5BB9;</label>
+                    <textarea id="content" name="content" maxlength="5000" placeholder="&#x8F93;&#x5165;&#x5185;&#x5BB9;..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="attachment">&#x9644;&#x4EF6; (&#x56FE;&#x7247;/&#x6587;&#x4EF6;)</label>
+                    <input type="file" id="attachment" name="attachment" accept="image/*,.pdf,.txt,.doc,.docx" />
+                </div>
+                <button type="submit" id="submit-btn">&#x53D1;&#x5E03;&#x7B14;&#x8BB0;</button>
+            </form>
+        </section>
+
+        <section>
+            <h2>&#x7B14;&#x8BB0;&#x5217;&#x8868;</h2>
+            <div id="notes-container">
+                <div id="loading">&#x52A0;&#x8F7D;&#x4E2D;...</div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        async function loadEnv() {
+            try {
+                const res = await fetch('/api/env');
+                const data = await res.json();
+                const tbody = document.getElementById('env-tbody');
+                tbody.innerHTML = data.variables.map(v =>
+                    `<tr><td><strong>${v.key}</strong></td><td>${v.value ?? '(null)'}</td></tr>`
+                ).join('');
+                document.getElementById('env-loading').style.display = 'none';
+                document.getElementById('env-table').style.display = '';
+            } catch(e) {
+                document.getElementById('env-loading').textContent = '加载失败: ' + e.message;
+            }
+        }
+
+        async function loadNotes() {
+            try {
+                const res = await fetch('/api/notes');
+                const notes = await res.json();
+                const container = document.getElementById('notes-container');
+                if (!notes.length) {
+                    container.innerHTML = '<div class="empty">暂无笔记，写一篇吧 ✍️</div>';
+                    return;
+                }
+                container.innerHTML = notes.map(n => `
+                    <div class="note-card" id="note-${n.id}">
+                        <h3>${escapeHtml(n.title)}</h3>
+                        <div class="meta">${new Date(n.createdAt).toLocaleString('zh-CN')} | ${n.fileSize ? formatSize(n.fileSize) : '无附件'}</div>
+                        <div class="content">${escapeHtml(n.content).substring(0, 200)}</div>
+                        ${n.thumbnailUrl ? `<img src="${n.thumbnailUrl}" alt="thumbnail" onerror="this.style.display='none'" />` : ''}
+                        ${n.attachmentUrl && !n.thumbnailUrl ? `<div><a href="${n.attachmentUrl}" target="_blank">📎 ${escapeHtml(n.originalFileName || '下载附件')}</a></div>` : ''}
+                        <div class="actions"><button onclick="deleteNote('${n.id}')">删除</button></div>
+                    </div>
+                `).join('');
+            } catch(e) {
+                document.getElementById('notes-container').innerHTML = '<div class="empty">加载失败: ' + e.message + '</div>';
+            }
+        }
+
+        document.getElementById('note-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('submit-btn');
+            btn.disabled = true;
+            btn.textContent = '发布中...';
+
+            const formData = new FormData(e.target);
+            try {
+                const res = await fetch('/api/notes', { method: 'POST', body: formData });
+                if (res.ok) {
+                    e.target.reset();
+                    await loadNotes();
+                } else {
+                    const err = await res.text();
+                    alert('发布失败: ' + err);
+                }
+            } catch(ex) {
+                alert('网络错误: ' + ex.message);
+            }
+            btn.disabled = false;
+            btn.textContent = '发布笔记';
+        });
+
+        async function deleteNote(id) {
+            if (!confirm('确认删除？')) return;
+            try {
+                const res = await fetch('/api/notes/' + id, { method: 'DELETE' });
+                if (res.ok) {
+                    document.getElementById('note-' + id)?.remove();
+                }
+            } catch(ex) {
+                alert('删除失败: ' + ex.message);
+            }
+        }
+
+        function escapeHtml(str) { const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
+        function formatSize(bytes) { return bytes < 1024 ? bytes + 'B' : bytes < 1048576 ? (bytes/1024).toFixed(1) + 'KB' : (bytes/1048576).toFixed(1) + 'MB'; }
+
+        loadEnv();
+        loadNotes();
+    </script>
+</body>
+</html>

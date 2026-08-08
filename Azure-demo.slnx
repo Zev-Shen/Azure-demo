@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/CloudNotes.Api/CloudNotes.Api.csproj" />
+    <Project Path="src/CloudNotes.Functions/CloudNotes.Functions.csproj" />
+    <Project Path="src/CloudNotes.Report/CloudNotes.Report.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CloudNotes.Tests/CloudNotes.Tests.csproj" />
+  </Folder>
+</Solution>

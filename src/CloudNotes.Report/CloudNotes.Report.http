@@ -1,0 +1,6 @@
+@CloudNotes.Report_HostAddress = http://localhost:5276
+
+GET {{CloudNotes.Report_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

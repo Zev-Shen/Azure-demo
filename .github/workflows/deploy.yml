@@ -1,0 +1,162 @@
+﻿name: Build, Test & Deploy - CloudNotes
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  ACR_NAME: ${{ secrets.ACR_NAME }}
+  APP_SERVICE_NAME: ${{ secrets.APP_SERVICE_NAME }}
+  FUNCTION_APP_NAME: ${{ secrets.FUNCTION_APP_NAME }}
+  CONTAINER_APP_NAME: ${{ secrets.CONTAINER_APP_NAME }}
+  RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
+
+jobs:
+  build:
+    name: Build & Publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Publish API (App Service)
+        run: dotnet publish src/CloudNotes.Api/CloudNotes.Api.csproj --no-build -c Release -o ./publish/api
+
+      - name: Publish Functions
+        run: dotnet publish src/CloudNotes.Functions/CloudNotes.Functions.csproj --no-build -c Release -o ./publish/func
+
+      - name: Upload API artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-publish
+          path: ./publish/api
+
+      - name: Upload Functions artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: functions-publish
+          path: ./publish/func
+
+  test:
+    name: Run Tests
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test --no-build --configuration Release --logger trx --results-directory ./test-results
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: ./test-results
+
+  deploy-api:
+    name: Deploy API to App Service
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download API artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: api-publish
+          path: ./publish/api
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.APP_SERVICE_NAME }}
+          package: ./publish/api
+
+  deploy-func:
+    name: Deploy to Function App
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Functions artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: functions-publish
+          path: ./publish/func
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to Function App
+        uses: azure/functions-action@v1
+        with:
+          app-name: ${{ env.FUNCTION_APP_NAME }}
+          package: ./publish/func
+
+  deploy-report:
+    name: Deploy Report to Container Apps
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build and push Docker image
+        uses: azure/docker-login@v2
+        with:
+          login-server: ${{ env.ACR_NAME }}.azurecr.io
+
+      - run: |
+          docker build -f docker/Dockerfile -t ${{ env.ACR_NAME }}.azurecr.io/cloudnotes-report:${{ github.sha }} .
+          docker push ${{ env.ACR_NAME }}.azurecr.io/cloudnotes-report:${{ github.sha }}
+
+      - name: Deploy to Container Apps
+        uses: azure/container-apps-deploy-action@v2
+        with:
+          resourceGroup: ${{ env.RESOURCE_GROUP }}
+          containerAppName: ${{ env.CONTAINER_APP_NAME }}
+          imageToDeploy: ${{ env.ACR_NAME }}.azurecr.io/cloudnotes-report:${{ github.sha }}
+          targetPort: 8080

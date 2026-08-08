@@ -1,0 +1,42 @@
+﻿# .NET
+bin/
+obj/
+*.user
+*.suo
+*.cache
+*.userprefs
+.vs/
+*.DotSettings.user
+
+# Azure Functions
+local.settings.json
+*.csx.lock
+
+# Node / npm
+node_modules/
+package-lock.json
+
+# SQLite
+*.db
+*.db-shm
+*.db-wal
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Build outputs
+publish/
+test-results/
+
+# Docker
+*.tar
+
+
