@@ -100,14 +100,10 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      - name: Deploy to Function App
-        run: |
-          cd ./publish/func
-          zip -r ../func.zip .
-          az functionapp deployment source config-zip \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --name ${{ env.FUNCTION_APP_NAME }} \
-            --src ../func.zip
+      - uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.FUNCTION_APP_NAME }}
+          package: ./publish/func
 
   deploy-report:
     name: Deploy Report
@@ -131,4 +127,6 @@ jobs:
           containerAppName: ${{ env.CONTAINER_APP_NAME }}
           imageToDeploy: ${{ env.ACR_NAME }}.azurecr.io/cloudnotes-report:${{ github.sha }}
           targetPort: 8080
+
+
 
