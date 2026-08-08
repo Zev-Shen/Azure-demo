@@ -7,6 +7,10 @@ on:
     branches: [production]
   workflow_dispatch:
 
+permissions:
+  id-token: write
+  contents: read
+
 env:
   DOTNET_VERSION: '10.0.x'
   ACR_NAME: ${{ secrets.ACR_NAME }}
@@ -161,4 +165,3 @@ jobs:
           containerAppName: ${{ env.CONTAINER_APP_NAME }}
           imageToDeploy: ${{ env.ACR_NAME }}.azurecr.io/cloudnotes-report:${{ github.sha }}
           targetPort: 8080
-
