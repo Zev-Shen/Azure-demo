@@ -2,9 +2,9 @@
 
 on:
   push:
-    branches: [main]
+    branches: [production]
   pull_request:
-    branches: [main]
+    branches: [production]
   workflow_dispatch:
 
 env:
@@ -82,7 +82,7 @@ jobs:
   deploy-api:
     name: Deploy API to App Service
     needs: test
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/production'
     runs-on: ubuntu-latest
     steps:
       - name: Download API artifact
@@ -107,7 +107,7 @@ jobs:
   deploy-func:
     name: Deploy to Function App
     needs: test
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/production'
     runs-on: ubuntu-latest
     steps:
       - name: Download Functions artifact
@@ -134,7 +134,7 @@ jobs:
   deploy-report:
     name: Deploy Report to Container Apps
     needs: test
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/production'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -161,3 +161,4 @@ jobs:
           containerAppName: ${{ env.CONTAINER_APP_NAME }}
           imageToDeploy: ${{ env.ACR_NAME }}.azurecr.io/cloudnotes-report:${{ github.sha }}
           targetPort: 8080
+
