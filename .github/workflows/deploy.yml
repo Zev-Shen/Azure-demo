@@ -128,6 +128,8 @@ jobs:
         with:
           app-name: ${{ env.FUNCTION_APP_NAME }}
           package: ./publish/func
+          scm-do-build-during-deployment: false
+          enable-oryx-build: false
 
   deploy-report:
     name: Deploy Report to Container Apps
@@ -144,12 +146,11 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Build and push Docker image
-        uses: azure/docker-login@v2
-        with:
-          login-server: ${{ env.ACR_NAME }}.azurecr.io
+      - name: Login to ACR
+        run: az acr login --name ${{ env.ACR_NAME }}
 
-      - run: |
+      - name: Build and push Docker image
+        run: |
           docker build -f docker/Dockerfile -t ${{ env.ACR_NAME }}.azurecr.io/cloudnotes-report:${{ github.sha }} .
           docker push ${{ env.ACR_NAME }}.azurecr.io/cloudnotes-report:${{ github.sha }}
 
