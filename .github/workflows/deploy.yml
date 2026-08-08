@@ -3,8 +3,6 @@
 on:
   push:
     branches: [production]
-  pull_request:
-    branches: [production]
   workflow_dispatch:
 
 permissions:
@@ -20,126 +18,89 @@ env:
   RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
 
 jobs:
-  build:
-    name: Build & Publish
+  build-api:
+    name: Build API
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-
-      - name: Restore
-        run: dotnet restore
-
-      - name: Build
-        run: dotnet build --no-restore --configuration Release
-
-      - name: Publish API
-        run: dotnet publish src/CloudNotes.Api/CloudNotes.Api.csproj --no-build -c Release -o ./publish/api
-
-      - name: Clean Functions obj
-        run: rm -rf src/CloudNotes.Functions/obj
-
-      - name: Publish Functions
-        run: dotnet publish src/CloudNotes.Functions/CloudNotes.Functions.csproj -c Release -o ./publish/func
-      - name: Debug: List Functions publish output
-        run: |
-          echo "=== Top level ==="
-          ls -la ./publish/func/
-          echo "=== .azurefunctions ==="
-          ls -la ./publish/func/.azurefunctions/ || echo "NOT FOUND"
-          echo "=== .azurefunctions/runtimes ==="
-          ls -la ./publish/func/.azurefunctions/runtimes/ || echo "NOT FOUND"
-
-      - name: Upload API artifact
-        uses: actions/upload-artifact@v4
+      - run: dotnet restore src/CloudNotes.Api/CloudNotes.Api.csproj
+      - run: dotnet publish src/CloudNotes.Api/CloudNotes.Api.csproj -c Release -o ./publish/api --no-restore
+      - uses: actions/upload-artifact@v4
         with:
           name: api-publish
           path: ./publish/api
 
-      - name: Upload Functions artifact
-        uses: actions/upload-artifact@v4
+  build-func:
+    name: Build Functions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - run: dotnet publish src/CloudNotes.Functions/CloudNotes.Functions.csproj -c Release -o ./publish/func
+      - uses: actions/upload-artifact@v4
         with:
           name: functions-publish
           path: ./publish/func
 
   test:
     name: Run Tests
-    needs: build
+    needs: [build-api, build-func]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-
-      - name: Restore
-        run: dotnet restore
-
-      - name: Build
-        run: dotnet build --no-restore --configuration Release
-
-      - name: Test
-        run: dotnet test --no-build --configuration Release --logger trx --results-directory ./test-results
-
-      - name: Upload test results
-        if: always()
+      - run: dotnet restore
+      - run: dotnet build --no-restore --configuration Release
+      - run: dotnet test --no-build --configuration Release --logger trx --results-directory ./test-results
+      - if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-results
           path: ./test-results
 
   deploy-api:
-    name: Deploy API to App Service
+    name: Deploy API
     needs: test
     if: github.ref == 'refs/heads/production'
     runs-on: ubuntu-latest
     steps:
-      - name: Download API artifact
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: api-publish
           path: ./publish/api
-
-      - name: Azure Login (OIDC)
-        uses: azure/login@v2
+      - uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Deploy to App Service
-        uses: azure/webapps-deploy@v3
+      - uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ env.APP_SERVICE_NAME }}
           package: ./publish/api
 
   deploy-func:
-    name: Deploy to Function App
+    name: Deploy Functions
     needs: test
     if: github.ref == 'refs/heads/production'
     runs-on: ubuntu-latest
     steps:
-      - name: Download Functions artifact
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: functions-publish
           path: ./publish/func
-
-      - name: Azure Login (OIDC)
-        uses: azure/login@v2
+      - uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Deploy to Function App
-        uses: azure/functions-action@v1
+      - uses: azure/functions-action@v1
         with:
           app-name: ${{ env.FUNCTION_APP_NAME }}
           package: ./publish/func
@@ -147,33 +108,24 @@ jobs:
           enable-oryx-build: false
 
   deploy-report:
-    name: Deploy Report to Container Apps
+    name: Deploy Report
     needs: test
     if: github.ref == 'refs/heads/production'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Azure Login (OIDC)
-        uses: azure/login@v2
+      - uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Login to ACR
-        run: az acr login --name ${{ env.ACR_NAME }}
-
-      - name: Build and push Docker image
-        run: |
+      - run: az acr login --name ${{ env.ACR_NAME }}
+      - run: |
           docker build -f docker/Dockerfile -t ${{ env.ACR_NAME }}.azurecr.io/cloudnotes-report:${{ github.sha }} .
           docker push ${{ env.ACR_NAME }}.azurecr.io/cloudnotes-report:${{ github.sha }}
-
-      - name: Deploy to Container Apps
-        uses: azure/container-apps-deploy-action@v2
+      - uses: azure/container-apps-deploy-action@v2
         with:
           resourceGroup: ${{ env.RESOURCE_GROUP }}
           containerAppName: ${{ env.CONTAINER_APP_NAME }}
           imageToDeploy: ${{ env.ACR_NAME }}.azurecr.io/cloudnotes-report:${{ github.sha }}
           targetPort: 8080
-
