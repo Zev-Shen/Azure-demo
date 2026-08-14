@@ -20,6 +20,15 @@ builder.Services.AddControllers();
 
 var app = builder.Build();
 
+app.MapGet("/health", () => Results.Ok(new
+{
+    status = "healthy",
+    timestamp = DateTime.UtcNow,
+    service = "CloudNotes.Report",
+    runtime = Environment.Version.ToString()
+}));
+
 app.MapControllers();
 
 app.Run();
+
