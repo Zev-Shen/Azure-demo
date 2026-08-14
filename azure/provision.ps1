@@ -72,7 +72,7 @@ az appservice plan create `
     --name $AppServicePlanName `
     --resource-group $ResourceGroup `
     --location $Location `
-    --sku F1    # 免费层，学习够用
+    --sku F1
 
 az webapp create `
     --name $AppServiceName `
@@ -235,3 +235,4 @@ Write-Host @"
 "@ -ForegroundColor White
 
 Write-Host "`n脚本执行完毕。请根据上面的指引继续手动配置。" -ForegroundColor Green
+
